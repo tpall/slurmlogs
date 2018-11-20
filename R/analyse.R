@@ -89,36 +89,3 @@ models %>%
   mutate(mb300 = Intercept + (300 * 1048576) * fq1_bytes,
          mb3000 = Intercept + (3000 * 1048576) * fq1_bytes) %>% 
   mutate_at(vars(starts_with("mb")), ~ .x / 60)
-
-#' ## Unfinished jobs
-#' 
-unfinished_start <- unfinished_logs %>% 
-  group_by(path) %>%
-  summarise(start = log[12],
-            start = str_replace_all(start, "\\[|\\]| wildcard.+", "")) %>% 
-  separate(start, c("wd", "m", "d", "t", "y"), sep = "\\s+") %>% 
-  unite(start, "y", "m", "d", "t", sep = "-") %>% 
-  select(-wd) %>% 
-  mutate_at(vars(start), ymd_hms)
-
-unfinished_rule <- unfinished_logs %>% 
-  filter(str_detect(log, "^rule")) %>% 
-  mutate(rule = str_replace_all(log, "^rule |:$", "")) %>% 
-  select(path, rule)
-
-unfinished_cause <- unfinished_logs %>% 
-  filter(str_detect(log, "CANCELLED AT")) %>% 
-  mutate(cancelled = str_extract(log, "20.+"),
-         cause = str_extract(cancelled, "DUE.+"),
-         cancelled = str_replace(cancelled, "DUE.+", "")) %>% 
-  select(path, cancelled, cause) %>% 
-  mutate_at(vars(cancelled, cause), str_replace_all, " |\\*|DUE TO", "") %>% 
-  mutate_at("cancelled", ymd_hms)
-
-inner_join(unfinished_start, unfinished_rule) %>% 
-  inner_join(unfinished_cause) %>% 
-  mutate(runtime = difftime(cancelled, start, units = "mins")) %>% 
-  filter(cause == "TIMELIMIT", runtime > 5) %>% 
-  ggplot() +
-  geom_histogram(mapping = aes(x = runtime), bins = 30) +
-  facet_wrap(~ rule, scales = "free")
